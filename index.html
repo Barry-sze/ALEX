@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TAKARA TOMY 玩具批发落单系统</title>
+<style>
+  :root{
+    --cream:#F5F1E8;
+    --cream-deep:#EAE3D3;
+    --ink:#20241F;
+    --ink-soft:#5A5B52;
+    --line:#D8D0BC;
+    --crate:#2E5C4E;
+    --crate-deep:#1F4136;
+    --stamp-red:#B5432B;
+    --tag-amber:#C98A2C;
+    --tomy-blue:#2A5CA8;
+    --paper:#FFFFFF;
+    --shadow: 0 2px 0 rgba(32,36,31,0.08);
+    --mono: 'SFMono-Regular','Consolas','DejaVu Sans Mono',monospace;
+    --sans: -apple-system,BlinkMacSystemFont,'PingFang TC','Microsoft JhengHei','Noto Sans TC',sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;background:var(--cream);color:var(--ink);font-family:var(--sans);
+    background-image: radial-gradient(circle at 1px 1px, rgba(32,36,31,0.06) 1px, transparent 0);
+    background-size: 18px 18px;
+  }
+  .app{display:flex;min-height:100vh;}
+
+  /* ---------- Sidebar ---------- */
+  .sidebar{width:220px;flex-shrink:0;background:var(--crate-deep);color:#F0EBDD;padding:26px 18px;display:flex;flex-direction:column;gap:22px;}
+  .brand{font-family:var(--mono);font-weight:700;font-size:14px;letter-spacing:0.3px;display:flex;flex-direction:column;gap:2px;border-bottom:1px dashed rgba(240,235,221,0.3);padding-bottom:16px;}
+  .brand .sub{font-size:10.5px;opacity:0.55;font-weight:400;letter-spacing:1px;}
+  .rep-select label, .nav-label{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:1.5px;opacity:0.55;display:block;margin-bottom:8px;}
+  select#repSelect{width:100%;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.25);color:#F0EBDD;padding:9px 10px;border-radius:3px;font-family:var(--sans);font-size:14px;}
+  .nav{display:flex;flex-direction:column;gap:4px;}
+  .nav button{text-align:left;background:none;border:none;color:#F0EBDD;padding:11px 12px;border-radius:3px;font-size:14px;font-family:var(--sans);cursor:pointer;opacity:0.65;transition:all .15s;display:flex;align-items:center;gap:9px;}
+  .nav button:hover{opacity:1;background:rgba(255,255,255,0.06);}
+  .nav button.active{opacity:1;background:rgba(255,255,255,0.12);font-weight:700;box-shadow:inset 3px 0 0 var(--tag-amber);}
+
+  /* connection status + offline toggle */
+  .conn-box{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:12px;}
+  .conn-row{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .conn-left{display:flex;align-items:center;gap:8px;font-size:12.5px;}
+  .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+  .dot.online{background:#6FCF97;box-shadow:0 0 6px #6FCF97;}
+  .dot.offline{background:var(--stamp-red);box-shadow:0 0 6px var(--stamp-red);}
+  .switch{position:relative;width:36px;height:20px;flex-shrink:0;}
+  .switch input{opacity:0;width:0;height:0;}
+  .slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,0.25);border-radius:20px;transition:.2s;}
+  .slider:before{position:absolute;content:"";height:14px;width:14px;left:3px;bottom:3px;background:white;border-radius:50%;transition:.2s;}
+  input:checked + .slider{background:var(--stamp-red);}
+  input:checked + .slider:before{transform:translateX(16px);}
+  .conn-hint{font-size:10px;opacity:0.5;margin-top:6px;line-height:1.4;}
+  .queue-badge{margin-top:10px;background:var(--tag-amber);color:#20241F;font-size:11.5px;font-weight:700;padding:7px 10px;border-radius:5px;display:none;align-items:center;justify-content:space-between;gap:6px;cursor:pointer;}
+
+  .sidebar-footer{margin-top:auto;font-family:var(--mono);font-size:10px;opacity:0.4;line-height:1.6;}
+
+  /* ---------- Main ---------- */
+  .main{flex:1;padding:30px 36px;max-width:1180px;}
+  .page{display:none;}
+  .page.active{display:block;animation:fadeIn .25s ease;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
+
+  h1{font-family:var(--mono);font-size:21px;font-weight:700;margin:0 0 4px;display:flex;align-items:center;gap:10px;}
+  .subtitle{color:var(--ink-soft);font-size:13.5px;margin-bottom:24px;}
+
+  .panel{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:20px 22px;margin-bottom:18px;box-shadow:var(--shadow);}
+  .panel-title{font-family:var(--mono);font-size:12px;text-transform:uppercase;letter-spacing:1.2px;color:var(--ink-soft);margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;}
+
+  .cust-row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;}
+  .field{display:flex;flex-direction:column;gap:6px;flex:1;min-width:200px;}
+  .field label{font-size:12px;color:var(--ink-soft);font-weight:500;}
+  select, input[type=number], input[type=text]{padding:10px 12px;border:1px solid var(--line);border-radius:4px;font-family:var(--sans);font-size:14px;background:var(--cream);color:var(--ink);width:100%;}
+  .cust-meta{display:flex;gap:22px;background:var(--cream-deep);border-radius:4px;padding:12px 16px;margin-top:14px;flex-wrap:wrap;font-size:13px;}
+  .cust-meta .m-label{color:var(--ink-soft);font-size:11px;display:block;}
+  .cust-meta .m-val{font-family:var(--mono);font-weight:700;font-size:15px;}
+
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;}
+  .chip{padding:6px 14px;border-radius:20px;border:1px solid var(--line);font-size:12.5px;cursor:pointer;background:var(--cream);color:var(--ink-soft);font-family:var(--sans);}
+  .chip.active{background:var(--tomy-blue);color:#fff;border-color:var(--tomy-blue);}
+
+  .product-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px;margin-bottom:6px;}
+  .product-card{border:1px solid var(--line);border-radius:6px;padding:14px;background:var(--cream);display:flex;flex-direction:column;gap:8px;position:relative;}
+  .product-card.low-stock{border-color:var(--tag-amber);}
+  .p-icon{width:44px;height:44px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px;background:var(--paper);border:1px solid var(--line);}
+  .p-cat{font-family:var(--mono);font-size:10px;color:var(--tomy-blue);text-transform:uppercase;letter-spacing:0.6px;font-weight:700;}
+  .p-name{font-weight:700;font-size:14px;line-height:1.3;}
+  .p-sku{font-family:var(--mono);font-size:10.5px;color:var(--ink-soft);}
+  .p-price{font-family:var(--mono);font-weight:700;font-size:15px;color:var(--crate-deep);}
+  .p-stock{font-size:11.5px;color:var(--ink-soft);}
+  .p-stock.low{color:var(--stamp-red);font-weight:700;}
+  .p-controls{display:flex;gap:6px;margin-top:4px;}
+  .p-controls input{width:56px;padding:7px 6px;text-align:center;}
+  .p-controls button{flex:1;background:var(--crate);color:#fff;border:none;border-radius:4px;font-size:12.5px;font-weight:700;cursor:pointer;padding:7px 8px;}
+  .p-controls button:hover{background:var(--crate-deep);}
+  .low-badge{position:absolute;top:10px;right:10px;background:var(--tag-amber);color:#fff;font-size:9.5px;padding:2px 7px;border-radius:10px;font-family:var(--mono);font-weight:700;}
+
+  button.primary{background:var(--crate);color:#fff;border:none;padding:11px 20px;border-radius:4px;font-weight:700;font-size:14px;cursor:pointer;font-family:var(--sans);transition:background .15s;white-space:nowrap;}
+  button.primary:hover{background:var(--crate-deep);}
+  button.ghost{background:none;border:1px solid var(--line);color:var(--ink-soft);padding:10px 16px;border-radius:4px;cursor:pointer;font-size:13.5px;font-family:var(--sans);}
+  button.ghost:hover{border-color:var(--stamp-red);color:var(--stamp-red);}
+  button.scan-btn{background:var(--tomy-blue);color:#fff;border:none;padding:10px 16px;border-radius:4px;cursor:pointer;font-size:13.5px;font-weight:700;font-family:var(--sans);}
+  button.scan-btn:hover{background:#204685;}
+  button.danger-text{background:none;border:none;color:var(--stamp-red);cursor:pointer;font-size:13px;font-family:var(--sans);}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th{text-align:left;font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:0.8px;color:var(--ink-soft);border-bottom:1px solid var(--line);padding:8px 6px;}
+  td{padding:10px 6px;border-bottom:1px solid var(--cream-deep);}
+  tr:last-child td{border-bottom:none;}
+  .num{font-family:var(--mono);text-align:right;}
+
+  .cart-total{display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding-top:14px;border-top:1px dashed var(--line);}
+  .cart-total .amt{font-family:var(--mono);font-size:22px;font-weight:700;color:var(--crate-deep);}
+  .cart-actions{display:flex;gap:10px;margin-top:16px;justify-content:flex-end;flex-wrap:wrap;}
+  .empty{color:var(--ink-soft);font-size:13.5px;padding:20px 0;text-align:center;}
+
+  .order-card{background:var(--paper);border:1px solid var(--line);border-radius:6px;margin-bottom:14px;overflow:hidden;box-shadow:var(--shadow);}
+  .order-head{padding:14px 20px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;background:var(--cream-deep);flex-wrap:wrap;gap:10px;}
+  .order-head-left{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+  .order-id{font-family:var(--mono);font-weight:700;font-size:13.5px;}
+  .order-shop{font-weight:700;}
+  .order-rep{color:var(--ink-soft);font-size:12.5px;}
+  .order-amt{font-family:var(--mono);font-weight:700;}
+  .badge{font-family:var(--mono);font-size:10.5px;padding:3px 9px;border-radius:20px;font-weight:700;letter-spacing:0.5px;white-space:nowrap;}
+  .badge.pending{background:#F5E3C4;color:var(--tag-amber);}
+  .badge.approved{background:#D9EBE2;color:var(--crate);}
+  .badge.rejected{background:#F3D9D2;color:var(--stamp-red);}
+  .badge.shipped{background:#DAE6F2;color:var(--tomy-blue);}
+  .badge.queued{background:#EDEAE0;color:var(--ink-soft);}
+  .order-body{padding:16px 20px;border-top:1px solid var(--line);display:none;}
+  .order-body.open{display:block;}
+  .order-buttons{display:flex;gap:10px;margin-top:14px;justify-content:flex-end;flex-wrap:wrap;}
+  .chev{transition:transform .2s;color:var(--ink-soft);}
+  .chev.open{transform:rotate(90deg);}
+
+  .stats{display:flex;gap:16px;margin-bottom:20px;flex-wrap:wrap;}
+  .stat-box{flex:1;min-width:150px;background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:16px 18px;box-shadow:var(--shadow);}
+  .stat-box .label{font-size:11.5px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.8px;font-family:var(--mono);}
+  .stat-box .value{font-family:var(--mono);font-size:26px;font-weight:700;margin-top:4px;color:var(--crate-deep);}
+
+  .zone-group{margin-bottom:22px;}
+  .zone-title{font-family:var(--mono);font-weight:700;font-size:13px;color:var(--tomy-blue);display:flex;align-items:center;gap:8px;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.8px;}
+  .zone-title .count{background:var(--tomy-blue);color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;}
+
+  .bar-chart{display:flex;flex-direction:column;gap:10px;}
+  .bar-row{display:flex;align-items:center;gap:10px;font-size:12.5px;}
+  .bar-label{width:150px;flex-shrink:0;color:var(--ink-soft);}
+  .bar-track{flex:1;background:var(--cream-deep);border-radius:4px;height:16px;overflow:hidden;}
+  .bar-fill{height:100%;background:var(--tomy-blue);border-radius:4px;}
+  .bar-val{width:70px;text-align:right;font-family:var(--mono);font-weight:700;flex-shrink:0;}
+
+  .toast{position:fixed;bottom:24px;right:24px;left:auto;background:var(--crate-deep);color:#fff;padding:14px 22px;border-radius:6px;font-size:14px;box-shadow:0 6px 18px rgba(0,0,0,0.2);opacity:0;transform:translateY(12px);transition:all .3s;pointer-events:none;font-family:var(--sans);z-index:100;max-width:80vw;}
+  .toast.show{opacity:1;transform:none;}
+
+  /* ---------- Scan Modal ---------- */
+  .modal-overlay{position:fixed;inset:0;background:rgba(20,22,18,0.55);display:none;align-items:center;justify-content:center;z-index:200;padding:16px;}
+  .modal-overlay.show{display:flex;}
+  .modal{background:var(--paper);border-radius:8px;width:100%;max-width:420px;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,0.3);}
+  .modal-head{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--line);font-weight:700;font-family:var(--mono);font-size:14px;}
+  .modal-head button{background:none;border:none;font-size:18px;cursor:pointer;color:var(--ink-soft);}
+  .modal-body{padding:20px;}
+  #cameraWrap{position:relative;background:#000;border-radius:6px;overflow:hidden;aspect-ratio:4/3;margin-bottom:14px;}
+  #scanVideo{width:100%;height:100%;object-fit:cover;display:block;}
+  .scan-frame{position:absolute;inset:20% 15%;border:2px solid var(--tag-amber);border-radius:6px;box-shadow:0 0 0 999px rgba(0,0,0,0.35);pointer-events:none;}
+  #cameraError{display:none;background:#F3D9D2;color:var(--stamp-red);padding:10px 12px;border-radius:4px;font-size:12.5px;margin-bottom:14px;line-height:1.5;}
+  .manual-entry label{font-size:12px;color:var(--ink-soft);display:block;margin-bottom:6px;}
+  .demo-hint{margin-top:12px;font-size:11px;color:var(--ink-soft);background:var(--cream-deep);padding:8px 10px;border-radius:4px;line-height:1.5;}
+  .demo-hint code{font-family:var(--mono);background:var(--paper);padding:1px 4px;border-radius:3px;}
+
+  @media(max-width:800px){
+    .app{flex-direction:column;}
+    .sidebar{width:100%;flex-direction:row;align-items:flex-start;padding:14px 18px;gap:14px;overflow-x:auto;}
+    .sidebar-footer{display:none;}
+    .brand{border:none;padding:0;}
+    .nav{flex-direction:row;}
+    .conn-box{min-width:150px;}
+    .main{padding:18px;}
+    .toast{left:18px;right:18px;max-width:none;}
+  }
+  @media print{
+    .sidebar, .nav, .panel-title button, .order-buttons, .toast{display:none !important;}
+    body{background:#fff;}
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="sidebar">
+    <div class="brand">TAKARA TOMY<span class="sub">批發訂單管理系統 · DEMO</span></div>
+    <div class="rep-select">
+      <label>業務員</label>
+      <select id="repSelect">
+        <option>Tesla</option>
+        <option>阿明</option>
+        <option>阿華</option>
+      </select>
+    </div>
+    <div>
+      <span class="nav-label">功能頁面</span>
+      <div class="nav">
+        <button class="nav-btn active" data-page="order">📝 落單</button>
+        <button class="nav-btn" data-page="review">📋 內勤審核</button>
+        <button class="nav-btn" data-page="warehouse">🚚 倉庫出貨</button>
+        <button class="nav-btn" data-page="overview">📊 訂單總覽</button>
+      </div>
+    </div>
+
+    <div class="conn-box">
+      <div class="conn-row">
+        <div class="conn-left"><span class="dot online" id="connDot"></span><span id="connLabel">已連線</span></div>
+        <label class="switch">
+          <input type="checkbox" id="offlineToggle" onchange="toggleOffline()">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="conn-hint">切換模擬「離線模式」，測試沒有網路時落單的行為</div>
+      <div class="queue-badge" id="queueBadge" onclick="syncQueue()"></div>
+    </div>
+
+    <div class="sidebar-footer">DEMO 版本 · 資料僅存於瀏覽器記憶體<br>重新整理頁面將會重置</div>
+  </div>
+
+  <div class="main">
+
+    <!-- PAGE 1: 落單 -->
+    <div class="page active" id="page-order">
+      <h1>📝 客戶落單</h1>
+      <div class="subtitle">選擇客戶 → 篩選分類 / 掃碼加入產品 → 提交訂單</div>
+
+      <div class="panel">
+        <div class="panel-title">選擇客戶</div>
+        <div class="cust-row">
+          <div class="field" style="flex:2;">
+            <label>客戶</label>
+            <select id="customerSelect"></select>
+          </div>
+        </div>
+        <div class="cust-meta" id="custMeta"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">
+          <span>產品目錄 <span id="filterCount" style="font-weight:400;font-size:11.5px;"></span></span>
+          <button class="scan-btn" onclick="openScanModal()">📷 掃碼加入</button>
+        </div>
+        <div class="chips" id="categoryChips"></div>
+        <div class="product-grid" id="productGrid"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">🛒 購物車 <span id="cartCount" style="font-weight:400;"></span></div>
+        <div id="cartTableWrap"></div>
+        <div id="cartTotalWrap"></div>
+      </div>
+    </div>
+
+    <!-- PAGE 2: 審核 -->
+    <div class="page" id="page-review">
+      <h1>📋 內勤審核 / 開單</h1>
+      <div class="subtitle">確認庫存與價格，開單後轉倉庫出貨</div>
+      <div id="reviewList"></div>
+    </div>
+
+    <!-- PAGE 3: 倉庫出貨 -->
+    <div class="page" id="page-warehouse">
+      <h1>🚚 倉庫出貨</h1>
+      <div class="subtitle">已開單訂單按送貨區域分組，方便排路線</div>
+      <div id="warehouseWrap"></div>
+    </div>
+
+    <!-- PAGE 4: 總覽 -->
+    <div class="page" id="page-overview">
+      <h1>📊 訂單總覽</h1>
+      <div class="subtitle">今日所有訂單狀態與熱賣產品</div>
+      <div class="stats" id="statsWrap"></div>
+      <div class="panel">
+        <div class="panel-title">熱賣產品 TOP 5（依訂單金額）</div>
+        <div class="bar-chart" id="barChart"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">全部訂單</div>
+        <div id="overviewTableWrap"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- 掃碼 Modal -->
+<div class="modal-overlay" id="scanModal">
+  <div class="modal">
+    <div class="modal-head">📷 掃描條碼加入購物車 <button onclick="closeScanModal()">✕</button></div>
+    <div class="modal-body">
+      <div id="cameraWrap">
+        <video id="scanVideo" autoplay playsinline muted></video>
+        <div class="scan-frame"></div>
+      </div>
+      <div id="cameraError"></div>
+      <div class="manual-entry">
+        <label>或手動輸入條碼</label>
+        <div style="display:flex;gap:8px;">
+          <input type="text" id="manualBarcode" placeholder="例如 4970381101011">
+          <button class="primary" onclick="submitManualBarcode()">確認</button>
+        </div>
+      </div>
+      <div class="demo-hint">
+        Demo 提示：手機瀏覽器環境通常不允許相機權限，可直接試輸入以下條碼：<br>
+        <code>4970381101011</code> = Tomica 花冠　|　<code>4970381301017</code> = BEYBLADE X 起始組
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ---------------- 模拟资料：TAKARA TOMY 商品线（含条码） ----------------
+const CUSTOMERS = [
+  {id:"C0001", shop:"開心玩具屋 (旺角)", zone:"九龍", credit:50000, terms:"月結30天"},
+  {id:"C0002", shop:"童趣天地 (沙田)", zone:"新界", credit:30000, terms:"現結"},
+  {id:"C0003", shop:"寶寶樂園 (銅鑼灣)", zone:"港島", credit:80000, terms:"月結30天"},
+  {id:"C0004", shop:"玩具倉 (元朗)", zone:"新界", credit:40000, terms:"現結"},
+];
+
+const CATEGORIES = ["全部","Tomica 合金車","Plarail 鐵路","BEYBLADE X","Licca 莉卡娃娃","寶可夢公仔"];
+
+const PRODUCTS = [
+  {sku:"TM-101", barcode:"4970381101011", cat:"Tomica 合金車", icon:"🚗", name:"Tomica No.1 豐田花冠", price:22, stock:340, unit:"件"},
+  {sku:"TM-108", barcode:"4970381101028", cat:"Tomica 合金車", icon:"🚓", name:"Tomica 警車套裝 (3入)", price:58, stock:120, unit:"套"},
+  {sku:"TM-DX1", barcode:"4970381101035", cat:"Tomica 合金車", icon:"🏎️", name:"Tomica 夢幻賽車系列", price:35, stock:18, unit:"件"},
+  {sku:"PL-201", barcode:"4970381201014", cat:"Plarail 鐵路", icon:"🚄", name:"Plarail 新幹線 E5系", price:88, stock:75, unit:"件"},
+  {sku:"PL-205", barcode:"4970381201021", cat:"Plarail 鐵路", icon:"🛤️", name:"Plarail 軌道基本組", price:120, stock:45, unit:"盒"},
+  {sku:"PL-210", barcode:"4970381201038", cat:"Plarail 鐵路", icon:"🚉", name:"Plarail 車站場景組", price:150, stock:12, unit:"盒"},
+  {sku:"BX-301", barcode:"4970381301017", cat:"BEYBLADE X", icon:"🌀", name:"BEYBLADE X 起始戰鬥組", price:98, stock:200, unit:"盒"},
+  {sku:"BX-305", barcode:"4970381301024", cat:"BEYBLADE X", icon:"⚔️", name:"BEYBLADE X 對戰競技場", price:168, stock:30, unit:"件"},
+  {sku:"LC-401", barcode:"4970381401010", cat:"Licca 莉卡娃娃", icon:"👗", name:"Licca 莉卡娃娃 標準款", price:78, stock:95, unit:"件"},
+  {sku:"LC-410", barcode:"4970381401027", cat:"Licca 莉卡娃娃", icon:"🏠", name:"Licca 夢幻小屋套裝", price:220, stock:8, unit:"套"},
+  {sku:"PK-501", barcode:"4970381501013", cat:"寶可夢公仔", icon:"⚡", name:"寶可夢 皮卡丘絨毛公仔", price:65, stock:280, unit:"件"},
+  {sku:"PK-505", barcode:"4970381501020", cat:"寶可夢公仔", icon:"🔥", name:"寶可夢 精靈系列公仔盒抽", price:45, stock:150, unit:"盒"},
+];
+
+const LOW_STOCK_THRESHOLD = 20;
+
+let cart = [];
+let orders = [];
+let offlineQueue = [];  // 离线模式下暂存的订单（demo 中仅存于内存，正式 App 会用本机资料库）
+let orderSeq = 1;
+let activeCategory = "全部";
+let isOffline = false;
+
+// ---------------- 工具 ----------------
+function fmt(n){ return n.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}); }
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2600);
+}
+
+// ---------------- 客户 ----------------
+function initCustomers(){
+  const custSel = document.getElementById('customerSelect');
+  custSel.innerHTML = CUSTOMERS.map(c=>`<option value="${c.id}">${c.shop} (${c.zone})</option>`).join('');
+  custSel.addEventListener('change', renderCustMeta);
+  renderCustMeta();
+}
+function renderCustMeta(){
+  const c = CUSTOMERS.find(c=>c.id === document.getElementById('customerSelect').value);
+  document.getElementById('custMeta').innerHTML = `
+    <div><span class="m-label">信用額度</span><span class="m-val">HK$${fmt(c.credit)}</span></div>
+    <div><span class="m-label">付款條件</span><span class="m-val">${c.terms}</span></div>
+    <div><span class="m-label">送貨區域</span><span class="m-val">${c.zone}</span></div>
+  `;
+}
+
+// ---------------- 分类筛选 + 产品卡片 ----------------
+function initCategoryChips(){
+  const wrap = document.getElementById('categoryChips');
+  wrap.innerHTML = CATEGORIES.map(c=>`<div class="chip ${c===activeCategory?'active':''}" data-cat="${c}">${c}</div>`).join('');
+  wrap.querySelectorAll('.chip').forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      activeCategory = chip.dataset.cat;
+      initCategoryChips();
+      renderProductGrid();
+    });
+  });
+}
+
+function renderProductGrid(){
+  const grid = document.getElementById('productGrid');
+  const list = activeCategory === "全部" ? PRODUCTS : PRODUCTS.filter(p=>p.cat===activeCategory);
+  document.getElementById('filterCount').textContent = `${list.length} 項產品`;
+
+  grid.innerHTML = list.map(p=>{
+    const isLow = p.stock <= LOW_STOCK_THRESHOLD;
+    return `
+    <div class="product-card ${isLow?'low-stock':''}">
+      ${isLow ? '<span class="low-badge">庫存偏低</span>' : ''}
+      <div class="p-icon">${p.icon}</div>
+      <div class="p-cat">${p.cat}</div>
+      <div class="p-name">${p.name}</div>
+      <div class="p-sku">${p.sku}</div>
+      <div class="p-price">HK$${p.price} / ${p.unit}</div>
+      <div class="p-stock ${isLow?'low':''}">庫存：${p.stock} ${p.unit}</div>
+      <div class="p-controls">
+        <input type="number" min="1" value="1" id="qty-${p.sku}">
+        <button onclick="addToCart('${p.sku}')">加入</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function addToCart(sku){
+  const p = PRODUCTS.find(p=>p.sku===sku);
+  const qtyInput = document.getElementById(`qty-${sku}`);
+  const qty = parseInt(qtyInput.value) || 0;
+
+  if(qty < 1){ showToast('請輸入有效數量'); return; }
+  if(qty > p.stock){ showToast(`庫存不足！${p.name} 只剩 ${p.stock} ${p.unit}`); return; }
+
+  addQtyToCart(p, qty);
+  qtyInput.value = 1;
+}
+
+function addQtyToCart(p, qty){
+  const existing = cart.find(i=>i.sku===p.sku);
+  if(existing){
+    existing.qty += qty;
+    existing.subtotal = +(existing.qty * existing.unitPrice).toFixed(2);
+  } else {
+    cart.push({sku:p.sku, name:p.name, cat:p.cat, qty, unit:p.unit, unitPrice:p.price, subtotal:+(p.price*qty).toFixed(2)});
+  }
+  showToast(`已加入：${p.name} x ${qty}`);
+  renderCart();
+}
+
+// ---------------- 购物车 ----------------
+function renderCart(){
+  const wrap = document.getElementById('cartTableWrap');
+  const totalWrap = document.getElementById('cartTotalWrap');
+  document.getElementById('cartCount').textContent = cart.length ? `(${cart.length} 項)` : '';
+
+  if(cart.length === 0){
+    wrap.innerHTML = `<div class="empty">購物車是空的，請先在上方加入產品或掃碼。</div>`;
+    totalWrap.innerHTML = '';
+    return;
+  }
+
+  wrap.innerHTML = `
+    <table>
+      <thead><tr><th>編號</th><th>產品</th><th>數量</th><th>單位</th><th>單價</th><th>小計</th><th></th></tr></thead>
+      <tbody>
+        ${cart.map((item,i)=>`
+          <tr>
+            <td>${item.sku}</td>
+            <td>${item.name}</td>
+            <td class="num">${item.qty}</td>
+            <td>${item.unit}</td>
+            <td class="num">HK$${fmt(item.unitPrice)}</td>
+            <td class="num">HK$${fmt(item.subtotal)}</td>
+            <td><button class="danger-text" onclick="removeFromCart(${i})">移除</button></td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+
+  const total = cart.reduce((s,i)=>s+i.subtotal, 0);
+  totalWrap.innerHTML = `
+    <div class="cart-total">
+      <span style="color:var(--ink-soft);font-size:13px;">合計</span>
+      <span class="amt">HK$${fmt(total)}</span>
+    </div>
+    <div class="cart-actions">
+      <button class="ghost" onclick="clearCart()">🗑️ 清空購物車</button>
+      <button class="primary" onclick="submitOrder()">✅ ${isOffline ? '暫存訂單（離線）' : '提交訂單'}</button>
+    </div>
+  `;
+}
+function removeFromCart(i){ cart.splice(i,1); renderCart(); }
+function clearCart(){ cart = []; renderCart(); }
+
+function submitOrder(){
+  if(cart.length === 0) return;
+  const c = CUSTOMERS.find(c=>c.id === document.getElementById('customerSelect').value);
+  const rep = document.getElementById('repSelect').value;
+  const today = new Date();
+  const dateStr = today.getFullYear() + String(today.getMonth()+1).padStart(2,'0') + String(today.getDate()).padStart(2,'0');
+  const order = {
+    id: `${dateStr}-${String(orderSeq++).padStart(3,'0')}`,
+    customerId: c.id, customer: c.shop, zone: c.zone, rep,
+    time: today.toLocaleTimeString('zh-HK',{hour:'2-digit',minute:'2-digit'}),
+    status: isOffline ? 'queued' : 'pending',
+    items: [...cart], total: cart.reduce((s,i)=>s+i.subtotal,0),
+  };
+
+  if(isOffline){
+    offlineQueue.push(order);
+    showToast(`📥 訂單 ${order.id} 已暫存於本機，恢復網路後會自動同步`);
+    renderQueueBadge();
+  } else {
+    orders.push(order);
+    showToast(`✅ 訂單 ${order.id} 已提交，等待內勤審核！`);
+    renderReview(); renderOverview(); renderWarehouse();
+  }
+  cart = [];
+  renderCart();
+}
+
+// ---------------- 离线模式 ----------------
+function toggleOffline(){
+  isOffline = document.getElementById('offlineToggle').checked;
+  updateConnUI();
+  renderCart();
+  if(!isOffline && offlineQueue.length > 0){
+    syncQueue();
+  }
+}
+function updateConnUI(){
+  const dot = document.getElementById('connDot');
+  const label = document.getElementById('connLabel');
+  if(isOffline){
+    dot.className = 'dot offline';
+    label.textContent = '離線模式（模擬）';
+  } else {
+    dot.className = 'dot online';
+    label.textContent = '已連線';
+  }
+}
+function renderQueueBadge(){
+  const badge = document.getElementById('queueBadge');
+  if(offlineQueue.length > 0){
+    badge.style.display = 'flex';
+    badge.innerHTML = `<span>📥 ${offlineQueue.length} 張訂單待同步</span><span>↻</span>`;
+  } else {
+    badge.style.display = 'none';
+  }
+}
+function syncQueue(){
+  if(offlineQueue.length === 0) return;
+  const n = offlineQueue.length;
+  offlineQueue.forEach(o=>{ o.status = 'pending'; orders.push(o); });
+  offlineQueue = [];
+  showToast(`✅ 網路已恢復，已自動同步 ${n} 張離線訂單`);
+  renderQueueBadge();
+  renderReview(); renderOverview(); renderWarehouse();
+}
+
+// ---------------- 扫码 Modal ----------------
+let scanStream = null;
+let scanning = false;
+let barcodeDetectorInstance = null;
+if('BarcodeDetector' in window){
+  try{ barcodeDetectorInstance = new BarcodeDetector({formats:['ean_13','code_128','qr_code']}); }catch(e){ barcodeDetectorInstance = null; }
+}
+
+async function openScanModal(){
+  document.getElementById('scanModal').classList.add('show');
+  const errBox = document.getElementById('cameraError');
+  const camWrap = document.getElementById('cameraWrap');
+  errBox.style.display = 'none';
+  camWrap.style.display = 'block';
+
+  try{
+    scanStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    const video = document.getElementById('scanVideo');
+    video.srcObject = scanStream;
+    if(barcodeDetectorInstance){
+      scanning = true;
+      scanLoop();
+    } else {
+      errBox.style.display = 'block';
+      errBox.textContent = '此瀏覽器不支援自動辨識條碼（BarcodeDetector API），相機畫面僅供對位，請用下方手動輸入條碼。';
+    }
+  }catch(err){
+    camWrap.style.display = 'none';
+    errBox.style.display = 'block';
+    errBox.textContent = '無法啟用相機（可能是權限被拒，或目前環境不支援相機存取），請直接用下方手動輸入條碼。';
+  }
+  setTimeout(()=>document.getElementById('manualBarcode').focus(), 100);
+}
+
+function closeScanModal(){
+  document.getElementById('scanModal').classList.remove('show');
+  scanning = false;
+  if(scanStream){
+    scanStream.getTracks().forEach(t=>t.stop());
+    scanStream = null;
+  }
+}
+
+async function scanLoop(){
+  if(!scanning) return;
+  try{
+    const video = document.getElementById('scanVideo');
+    const codes = await barcodeDetectorInstance.detect(video);
+    if(codes.length > 0){
+      matchAndAddBarcode(codes[0].rawValue);
+      return;
+    }
+  }catch(e){ /* 侦测失败就继续下一帧 */ }
+  requestAnimationFrame(scanLoop);
+}
+
+function submitManualBarcode(){
+  const input = document.getElementById('manualBarcode');
+  const code = input.value.trim();
+  if(!code) return;
+  matchAndAddBarcode(code);
+  input.value = '';
+}
+
+function matchAndAddBarcode(code){
+  const p = PRODUCTS.find(p=>p.barcode === code.trim());
+  if(!p){
+    showToast(`❌ 找不到條碼 ${code} 對應的產品`);
+    return;
+  }
+  if(p.stock < 1){
+    showToast(`${p.name} 已無庫存`);
+    return;
+  }
+  addQtyToCart(p, 1);
+  closeScanModal();
+}
+
+// ---------------- 审核页 ----------------
+function renderReview(){
+  const wrap = document.getElementById('reviewList');
+  if(orders.length === 0){
+    wrap.innerHTML = `<div class="panel"><div class="empty">目前沒有訂單。</div></div>`;
+    return;
+  }
+  const pending = orders.filter(o=>o.status==='pending');
+  const others = orders.filter(o=>o.status!=='pending');
+  wrap.innerHTML = [...pending, ...others].map(o => orderCardHTML(o)).join('');
+}
+
+function badgeInfo(status){
+  return {
+    pending:{cls:'pending', text:'待審核'},
+    approved:{cls:'approved', text:'待出貨'},
+    shipped:{cls:'shipped', text:'已送達'},
+    rejected:{cls:'rejected', text:'已拒絕'},
+    queued:{cls:'queued', text:'離線暫存'},
+  }[status];
+}
+
+function orderCardHTML(o){
+  const b = badgeInfo(o.status);
+  return `
+    <div class="order-card">
+      <div class="order-head" onclick="toggleOrder('${o.id}')">
+        <div class="order-head-left">
+          <span class="chev" id="chev-${o.id}">▶</span>
+          <span class="order-id">${o.id}</span>
+          <span class="order-shop">${o.customer}</span>
+          <span class="order-rep">業務員：${o.rep} · ${o.zone}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <span class="badge ${b.cls}">${b.text}</span>
+          <span class="order-amt">HK$${fmt(o.total)}</span>
+        </div>
+      </div>
+      <div class="order-body" id="body-${o.id}">
+        <table>
+          <thead><tr><th>編號</th><th>產品</th><th>數量</th><th>單價</th><th>小計</th></tr></thead>
+          <tbody>
+            ${o.items.map(i=>`
+              <tr><td>${i.sku}</td><td>${i.name}</td><td class="num">${i.qty} ${i.unit}</td>
+              <td class="num">HK$${fmt(i.unitPrice)}</td><td class="num">HK$${fmt(i.subtotal)}</td></tr>
+            `).join('')}
+          </tbody>
+        </table>
+        ${o.status === 'pending' ? `
+          <div class="order-buttons">
+            <button class="ghost" onclick="setOrderStatus('${o.id}','rejected')">❌ 拒絕訂單</button>
+            <button class="primary" onclick="setOrderStatus('${o.id}','approved')">✅ 確認開單，轉倉庫出貨</button>
+          </div>` : ''}
+      </div>
+    </div>
+  `;
+}
+function toggleOrder(id){
+  document.getElementById(`body-${id}`).classList.toggle('open');
+  document.getElementById(`chev-${id}`).classList.toggle('open');
+}
+function setOrderStatus(id, status){
+  const o = orders.find(o=>o.id===id);
+  o.status = status;
+  showToast(status === 'approved' ? `訂單 ${id} 已開單，轉倉庫出貨` : `訂單 ${id} 已拒絕`);
+  renderReview(); renderOverview(); renderWarehouse();
+}
+
+// ---------------- 仓库出货页 ----------------
+function renderWarehouse(){
+  const wrap = document.getElementById('warehouseWrap');
+  const approved = orders.filter(o=>o.status==='approved' || o.status==='shipped');
+
+  if(approved.length === 0){
+    wrap.innerHTML = `<div class="panel"><div class="empty">目前沒有待出貨訂單。訂單經內勤開單後會顯示在這裡。</div></div>`;
+    return;
+  }
+
+  const zones = [...new Set(approved.map(o=>o.zone))];
+  wrap.innerHTML = zones.map(zone=>{
+    const zoneOrders = approved.filter(o=>o.zone===zone);
+    return `
+      <div class="zone-group">
+        <div class="zone-title">📍 ${zone} <span class="count">${zoneOrders.length} 張單</span></div>
+        ${zoneOrders.map(o=>`
+          <div class="order-card">
+            <div class="order-head" style="cursor:default;">
+              <div class="order-head-left">
+                <span class="order-id">${o.id}</span>
+                <span class="order-shop">${o.customer}</span>
+                <span class="order-rep">${o.items.length} 項產品</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span class="badge ${badgeInfo(o.status).cls}">${badgeInfo(o.status).text}</span>
+                <span class="order-amt">HK$${fmt(o.total)}</span>
+                ${o.status==='approved' ? `<button class="ghost" onclick="markShipped('${o.id}')">🚚 標記已送達</button>` : ''}
+                <button class="ghost" onclick="printSlip('${o.id}')">🖨️ 列印送貨單</button>
+              </div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }).join('');
+}
+
+function markShipped(id){
+  const o = orders.find(o=>o.id===id);
+  o.status = 'shipped';
+  showToast(`訂單 ${id} 已標記為送達`);
+  renderWarehouse(); renderReview(); renderOverview();
+}
+
+function printSlip(id){
+  const o = orders.find(o=>o.id===id);
+  const w = window.open('', '_blank');
+  w.document.write(`
+    <html><head><title>送貨單 ${o.id}</title>
+    <style>
+      body{font-family:sans-serif;padding:30px;color:#20241F;}
+      h2{margin-bottom:2px;} .meta{color:#5A5B52;font-size:13px;margin-bottom:20px;}
+      table{width:100%;border-collapse:collapse;} th,td{border:1px solid #ccc;padding:8px;text-align:left;font-size:13px;}
+      .total{margin-top:16px;font-size:16px;font-weight:bold;text-align:right;}
+    </style></head><body>
+    <h2>送貨單 / DELIVERY SLIP</h2>
+    <div class="meta">訂單編號：${o.id}　|　客戶：${o.customer}　|　送貨區域：${o.zone}　|　業務員：${o.rep}</div>
+    <table><thead><tr><th>編號</th><th>產品</th><th>數量</th><th>單價</th><th>小計</th></tr></thead>
+    <tbody>${o.items.map(i=>`<tr><td>${i.sku}</td><td>${i.name}</td><td>${i.qty} ${i.unit}</td><td>HK$${fmt(i.unitPrice)}</td><td>HK$${fmt(i.subtotal)}</td></tr>`).join('')}</tbody></table>
+    <div class="total">合計：HK$${fmt(o.total)}</div>
+    </body></html>
+  `);
+  w.document.close();
+  w.print();
+}
+
+// ---------------- 总览页 ----------------
+function renderOverview(){
+  const statsWrap = document.getElementById('statsWrap');
+  const tableWrap = document.getElementById('overviewTableWrap');
+  const barWrap = document.getElementById('barChart');
+
+  const pendingCount = orders.filter(o=>o.status==='pending').length;
+  const shippedCount = orders.filter(o=>o.status==='shipped').length;
+  const totalAmt = orders.reduce((s,o)=>s+o.total,0);
+
+  statsWrap.innerHTML = `
+    <div class="stat-box"><div class="label">訂單總數</div><div class="value">${orders.length}</div></div>
+    <div class="stat-box"><div class="label">待審核</div><div class="value">${pendingCount}</div></div>
+    <div class="stat-box"><div class="label">已送達</div><div class="value">${shippedCount}</div></div>
+    <div class="stat-box"><div class="label">今日總額</div><div class="value">HK$${fmt(totalAmt)}</div></div>
+  `;
+
+  const salesMap = {};
+  orders.forEach(o=>o.items.forEach(i=>{ salesMap[i.name] = (salesMap[i.name]||0) + i.subtotal; }));
+  const top5 = Object.entries(salesMap).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  if(top5.length === 0){
+    barWrap.innerHTML = `<div class="empty">暫無銷售資料。</div>`;
+  } else {
+    const max = top5[0][1];
+    barWrap.innerHTML = top5.map(([name,amt])=>`
+      <div class="bar-row">
+        <div class="bar-label">${name}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${(amt/max*100).toFixed(0)}%"></div></div>
+        <div class="bar-val">HK$${fmt(amt)}</div>
+      </div>
+    `).join('');
+  }
+
+  if(orders.length === 0){
+    tableWrap.innerHTML = `<div class="empty">暫無訂單記錄。</div>`;
+    return;
+  }
+  tableWrap.innerHTML = `
+    <table>
+      <thead><tr><th>訂單編號</th><th>客戶</th><th>業務員</th><th>提交時間</th><th>狀態</th><th>金額</th></tr></thead>
+      <tbody>
+        ${orders.slice().reverse().map(o=>{
+          const b = badgeInfo(o.status);
+          return `<tr>
+            <td>${o.id}</td><td>${o.customer}</td><td>${o.rep}</td><td>${o.time}</td>
+            <td><span class="badge ${b.cls}">${b.text}</span></td>
+            <td class="num">HK$${fmt(o.total)}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+// ---------------- 页面导航 ----------------
+document.querySelectorAll('.nav-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(`page-${btn.dataset.page}`).classList.add('active');
+  });
+});
+
+document.getElementById('scanModal').addEventListener('click', (e)=>{
+  if(e.target.id === 'scanModal') closeScanModal();
+});
+
+// ---------------- 启动 ----------------
+initCustomers();
+initCategoryChips();
+renderProductGrid();
+renderCart();
+renderReview();
+renderWarehouse();
+renderOverview();
+updateConnUI();
+</script>
+
+</body>
+</html>
